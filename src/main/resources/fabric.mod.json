@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "enchanting_commands",
+  "version": "${version}",
+  "name": "Enchanting Commands",
+  "description": "Enchantment commands for vanilla, mod and datapack enchantments, without Collective.",
+  "authors": ["SwordfishBE"],
+  "contact": {
+    "homepage": "https://github.com/SwordfishBE/Enchanting-Commands",
+    "sources": "https://github.com/SwordfishBE/Enchanting-Commands",
+    "email": "swordfishbe@locutus.net"
+  },
+  "license": "AGPL-3.0",
+  "icon": "assets/enchanting_commands/icon.png",
+  "environment": "*",
+  "entrypoints": { "main": ["net.enchanting_commands.EnchantingCommands"] },
+  "depends": {
+    "fabricloader": ">=0.19.5",
+    "minecraft": "26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "breaks": { "enchantingcommands": "*" }
+}
