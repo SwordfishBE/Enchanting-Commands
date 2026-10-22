@@ -15,17 +15,20 @@ import net.minecraft.world.item.enchantment.ItemEnchantments;
 final class EnchantCommand {
     private EnchantCommand() {}
 
-    static void register(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context, String name) {
+    static com.mojang.brigadier.tree.LiteralCommandNode<CommandSourceStack> register(
+            CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context, String name,
+            java.util.function.ToIntFunction<CommandSourceStack> reload) {
         if (dispatcher.getRoot().getChild(name) != null) {
             EnchantingCommands.LOGGER.warn("[Enchanting Commands] Command /{} is already registered; choose another enchantCommandString and restart.", name);
-            return;
+            return null;
         }
-        dispatcher.register(Commands.literal(name)
+        return dispatcher.register(Commands.literal(name)
                 .requires(source -> source.permissions().hasPermission(Permissions.COMMANDS_ADMIN))
                 .executes(command -> {
-                    reply(command.getSource(), "Usage: /" + name + " list | /" + name + " enchant <enchantment> <0-255>");
+                    reply(command.getSource(), "Usage: /" + name + " list | /" + name + " enchant <enchantment> <0-255> | /" + name + " reload");
                     return 1;
                 })
+                .then(Commands.literal("reload").executes(command -> reload.applyAsInt(command.getSource())))
                 .then(Commands.literal("list").executes(command -> {
                     var registry = command.getSource().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
                     String enchantments = registry.keySet().stream().map(id ->

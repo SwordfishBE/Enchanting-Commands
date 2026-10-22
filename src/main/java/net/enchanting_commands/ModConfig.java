@@ -15,6 +15,16 @@ final class ModConfig {
 
     static String load(Path path) {
         try {
+            return read(path);
+        } catch (IOException | RuntimeException exception) {
+            EnchantingCommands.LOGGER.warn("[Enchanting Commands] Cannot load config {}; using /ec. Existing file preserved. {}",
+                    path, exception.getMessage());
+            return DEFAULT_COMMAND;
+        }
+    }
+
+    // Reload callers handle errors without replacing the last working configuration.
+    static String read(Path path) throws IOException {
             if (Files.notExists(path)) {
                 Files.createDirectories(path.getParent());
                 JsonObject defaults = new JsonObject();
@@ -33,10 +43,5 @@ final class ModConfig {
                 throw new IllegalArgumentException("enchantCommandString must contain lowercase letters, digits, underscores or hyphens");
             }
             return command;
-        } catch (IOException | RuntimeException exception) {
-            EnchantingCommands.LOGGER.warn("[Enchanting Commands] Cannot load config {}; using /ec. Existing file preserved. {}",
-                    path, exception.getMessage());
-            return DEFAULT_COMMAND;
-        }
     }
 }

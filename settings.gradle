@@ -6,3 +6,6 @@ pluginManagement {
     }
 }
 rootProject.name = 'Enchanting-Commands'
+
+// Include the repository ignore file in the GitHub source archive.
+org.apache.tools.ant.DirectoryScanner.removeDefaultExclude('**/.gitignore')

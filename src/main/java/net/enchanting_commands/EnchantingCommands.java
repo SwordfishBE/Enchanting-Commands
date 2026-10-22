@@ -12,10 +12,10 @@ public final class EnchantingCommands implements ModInitializer {
 
     @Override
     public void onInitialize() {
-        String command = ModConfig.load(FabricLoader.getInstance().getConfigDir()
-                .resolve(MOD_ID + ".json"));
+        var path = FabricLoader.getInstance().getConfigDir().resolve(MOD_ID + ".json");
+        var configuration = new CommandConfiguration(path, ModConfig.load(path));
         CommandRegistrationCallback.EVENT.register((dispatcher, context, environment) ->
-                EnchantCommand.register(dispatcher, context, command));
+                configuration.register(dispatcher, context));
         String version = FabricLoader.getInstance().getModContainer(MOD_ID).orElseThrow()
                 .getMetadata().getVersion().getFriendlyString();
         LOGGER.info("[Enchanting Commands] Mod initialized. Version: {}", version);

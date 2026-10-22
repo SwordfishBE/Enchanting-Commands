@@ -134,11 +134,73 @@ public class EnchantCommandTests {
     }
 
     @GameTest
+    public void reloadRenamesImmediatelyAndRejectsUnsafeChanges(GameTestHelper h) throws Exception {
+        var directory = java.nio.file.Files.createTempDirectory("enchanting-reload-test-");
+        var file = directory.resolve("config.json");
+        try {
+            var messages = new java.util.ArrayList<String>();
+            var output = new net.minecraft.commands.CommandSource() {
+                public void sendSystemMessage(net.minecraft.network.chat.Component message) { messages.add(message.getString()); }
+                public boolean acceptsSuccess() { return true; }
+                public boolean acceptsFailure() { return true; }
+                public boolean shouldInformAdmins() { return false; }
+            };
+            var source = h.getLevel().getServer().createCommandSourceStack().withSource(output);
+            var dispatcher = new com.mojang.brigadier.CommandDispatcher<CommandSourceStack>();
+            var context = net.minecraft.commands.CommandBuildContext.simple(source.registryAccess(), source.enabledFeatures());
+            var configuration = new CommandConfiguration(file, "reload_before");
+            configuration.register(dispatcher, context);
+            java.nio.file.Files.writeString(file, "{\"enchantCommandString\":\"reload_after\"}");
+            try {
+                dispatcher.execute("reload_before reload", source.withPermission(LevelBasedPermissionSet.ALL));
+                h.fail("Reload must require admin permission");
+            } catch (CommandSyntaxException expected) { }
+            h.assertTrue(dispatcher.getRoot().getChild("reload_after") == null, "Unauthorized reload cannot rename");
+            h.assertTrue(dispatcher.execute("reload_before reload", source) == 1, "Rename succeeds");
+            h.assertTrue(messages.getLast().equals("[Enchanting Commands] Config reloaded. Active command: /reload_after."), "Prefixed success feedback");
+            h.assertTrue(dispatcher.getRoot().getChild("reload_before") == null, "Old command removed from root");
+            try {
+                dispatcher.execute("reload_before list", source);
+                h.fail("Old command must stop parsing");
+            } catch (CommandSyntaxException expected) { }
+            h.assertTrue(dispatcher.execute("reload_after list", source) == 1, "New command active immediately");
+            var completion = dispatcher.getCompletionSuggestions(dispatcher.parse("reload_", source)).get();
+            h.assertTrue(completion.getList().stream().anyMatch(s -> s.getText().equals("reload_after")), "New root completes");
+            h.assertFalse(completion.getList().stream().anyMatch(s -> s.getText().equals("reload_before")), "Old root no longer completes");
+
+            java.nio.file.Files.writeString(file, "{broken");
+            h.assertTrue(dispatcher.execute("reload_after reload", source) == 0, "Invalid config rejected");
+            h.assertTrue(messages.getLast().startsWith("[Enchanting Commands] Config reload failed."), "Prefixed failure feedback");
+            h.assertTrue(java.nio.file.Files.readString(file).equals("{broken"), "Invalid file untouched");
+            h.assertTrue(dispatcher.execute("reload_after list", source) == 1, "Keep working command on invalid config");
+
+            var occupied = dispatcher.register(net.minecraft.commands.Commands.literal("occupied").executes(c -> 73));
+            java.nio.file.Files.writeString(file, "{\"enchantCommandString\":\"occupied\"}");
+            h.assertTrue(dispatcher.execute("reload_after reload", source) == 0, "Command collision rejected");
+            h.assertTrue(messages.getLast().startsWith("[Enchanting Commands] Config reload failed:"), "Prefixed collision feedback");
+            h.assertTrue(dispatcher.getRoot().getChild("occupied") == occupied, "Other command node untouched");
+            h.assertTrue(dispatcher.execute("occupied", source) == 73, "Other command behavior preserved");
+
+            java.nio.file.Files.writeString(file, "{\"enchantCommandString\":\"reload_before\"}");
+            h.assertTrue(dispatcher.execute("reload_after reload", source) == 1, "Rename back succeeds");
+            h.assertTrue(dispatcher.execute("reload_before reload", source) == 1, "Unchanged config reload succeeds");
+            h.assertTrue(dispatcher.getRoot().getChild("reload_after") == null, "Intermediate root removed");
+            var rebuilt = new com.mojang.brigadier.CommandDispatcher<CommandSourceStack>();
+            configuration.register(rebuilt, context);
+            h.assertTrue(rebuilt.getRoot().getChild("reload_before") != null, "Latest name survives dispatcher rebuild");
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+            java.nio.file.Files.deleteIfExists(directory);
+        }
+        h.succeed();
+    }
+
+    @GameTest
     public void configuredCommandName(GameTestHelper h) throws Exception {
         var source = source(h, new ItemStack(Items.STICK));
         var dispatcher = new com.mojang.brigadier.CommandDispatcher<CommandSourceStack>();
         var context = net.minecraft.commands.CommandBuildContext.simple(source.registryAccess(), source.enabledFeatures());
-        EnchantCommand.register(dispatcher, context, "custom_ec");
+        new CommandConfiguration(java.nio.file.Path.of("unused-test-config.json"), "custom_ec").register(dispatcher, context);
         h.assertTrue(dispatcher.execute("custom_ec enchant sharpness 1", source) == 1, "Custom root works");
         h.assertTrue(dispatcher.getRoot().getChild("ec") == null, "Default root not registered");
         h.succeed();

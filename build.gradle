@@ -33,3 +33,15 @@ fabricApi {
     }
 }
 jar { from('LICENSE') { rename { "LICENSE_${project.archives_base_name}" } } }
+
+tasks.register('sourceZip', Zip) {
+    archiveFileName = "${project.archives_base_name}-${project.version}-source.zip"
+    destinationDirectory = layout.buildDirectory.dir('distributions')
+    from('.') {
+        include '.gitignore', 'build.gradle', 'gradle.properties', 'gradlew', 'gradlew.bat'
+        include 'LICENSE', 'README.md', 'settings.gradle', 'VALIDATION.md'
+        include 'src/**', 'gradle/**'
+    }
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
