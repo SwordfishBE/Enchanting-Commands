@@ -196,6 +196,69 @@ public class EnchantCommandTests {
     }
 
     @GameTest
+    public void sharedCommandBranchesSurviveRejectedRename(GameTestHelper h) throws Exception {
+        var directory = java.nio.file.Files.createTempDirectory("enchanting-shared-root-test-");
+        var file = directory.resolve("config.json");
+        try {
+            var messages = new java.util.ArrayList<String>();
+            var output = new net.minecraft.commands.CommandSource() {
+                public void sendSystemMessage(net.minecraft.network.chat.Component message) { messages.add(message.getString()); }
+                public boolean acceptsSuccess() { return true; }
+                public boolean acceptsFailure() { return true; }
+                public boolean shouldInformAdmins() { return false; }
+            };
+            var source = h.getLevel().getServer().createCommandSourceStack().withSource(output);
+            var context = net.minecraft.commands.CommandBuildContext.simple(source.registryAccess(), source.enabledFeatures());
+            for (int scenario = 0; scenario < 4; scenario++) {
+                var dispatcher = new com.mojang.brigadier.CommandDispatcher<CommandSourceStack>();
+                var configuration = new CommandConfiguration(file, "shared_before");
+                configuration.register(dispatcher, context);
+                var addition = net.minecraft.commands.Commands.literal("shared_before");
+                String foreignCommand;
+                switch (scenario) {
+                    case 0 -> {
+                        addition.then(net.minecraft.commands.Commands.literal("foreign").executes(c -> 73));
+                        foreignCommand = "shared_before foreign";
+                    }
+                    case 1 -> {
+                        addition.then(net.minecraft.commands.Commands.literal("list")
+                                .then(net.minecraft.commands.Commands.literal("foreign").executes(c -> 73)));
+                        foreignCommand = "shared_before list foreign";
+                    }
+                    case 2 -> {
+                        addition.executes(c -> 73);
+                        foreignCommand = "shared_before";
+                    }
+                    default -> {
+                        addition.then(net.minecraft.commands.Commands.literal("list").executes(c -> 73));
+                        foreignCommand = "shared_before list";
+                    }
+                }
+                dispatcher.register(addition);
+                var original = dispatcher.getRoot().getChild("shared_before");
+                h.assertTrue(dispatcher.execute(foreignCommand, source) == 73, "Foreign command works before rename");
+                String requested = "{\"enchantCommandString\":\"shared_after\"}";
+                java.nio.file.Files.writeString(file, requested);
+                h.assertTrue(dispatcher.execute("shared_before reload", source) == 0, "Shared root rename rejected: " + scenario);
+                h.assertTrue(messages.getLast().startsWith("[Enchanting Commands] Config reload failed:"), "Prefixed shared-root error");
+                h.assertTrue(dispatcher.getRoot().getChild("shared_before") == original, "Shared root preserved");
+                h.assertTrue(dispatcher.getRoot().getChild("shared_after") == null, "No replacement registered on failure");
+                h.assertTrue(dispatcher.execute(foreignCommand, source) == 73, "Foreign behavior preserved after rejection");
+                h.assertTrue(java.nio.file.Files.readString(file).equals(requested), "Requested configuration preserved");
+                var rebuilt = new com.mojang.brigadier.CommandDispatcher<CommandSourceStack>();
+                configuration.register(rebuilt, context);
+                h.assertTrue(rebuilt.getRoot().getChild("shared_before") != null, "Failed rename must not change active name");
+                java.nio.file.Files.writeString(file, "{\"enchantCommandString\":\"shared_before\"}");
+                h.assertTrue(dispatcher.execute("shared_before reload", source) == 1, "Same-name reload remains safe for a shared root");
+            }
+        } finally {
+            java.nio.file.Files.deleteIfExists(file);
+            java.nio.file.Files.deleteIfExists(directory);
+        }
+        h.succeed();
+    }
+
+    @GameTest
     public void configuredCommandName(GameTestHelper h) throws Exception {
         var source = source(h, new ItemStack(Items.STICK));
         var dispatcher = new com.mojang.brigadier.CommandDispatcher<CommandSourceStack>();
