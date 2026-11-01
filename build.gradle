@@ -4,11 +4,18 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 base { archivesName = project.archives_base_name }
-repositories { mavenCentral() }
+repositories {
+    mavenCentral()
+    maven { url = 'https://maven.terraformersmc.com/releases/' }
+}
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+    localRuntime "com.terraformersmc:modmenu:${project.modmenu_version}"
+    testImplementation platform('org.junit:junit-bom:5.14.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 processResources {
     inputs.property 'version', project.version
@@ -19,6 +26,7 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 java {
+    toolchain.languageVersion = JavaLanguageVersion.of(25)
     withSourcesJar()
     sourceCompatibility = JavaVersion.VERSION_25
     targetCompatibility = JavaVersion.VERSION_25
@@ -34,12 +42,20 @@ fabricApi {
 }
 jar { from('LICENSE') { rename { "LICENSE_${project.archives_base_name}" } } }
 
+// Keep snapshot validation separate from the previous release's world and datapacks.
+loom.runs.named('gameTest') {
+    runDir "build/run/gameTest-${project.minecraft_version}"
+}
+
+test { useJUnitPlatform() }
+
 tasks.register('sourceZip', Zip) {
+    mustRunAfter tasks.named('wrapper')
     archiveFileName = "${project.archives_base_name}-${project.version}-source.zip"
     destinationDirectory = layout.buildDirectory.dir('distributions')
     from('.') {
         include '.gitignore', 'build.gradle', 'gradle.properties', 'gradlew', 'gradlew.bat'
-        include 'LICENSE', 'README.md', 'settings.gradle', 'VALIDATION.md'
+        include 'LICENSE', 'README.md', 'settings.gradle', 'VALIDATION.md', 'CHANGELOG.md'
         include 'src/**', 'gradle/**'
     }
     preserveFileTimestamps = false
