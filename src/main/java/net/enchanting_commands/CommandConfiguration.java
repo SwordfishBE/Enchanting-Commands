@@ -14,7 +14,8 @@ import net.minecraft.network.chat.Component;
 
 final class CommandConfiguration {
     private final Path path;
-    private String activeName;
+    private volatile String activeName;
+    private Registration registration;
 
     CommandConfiguration(Path path, String initialName) {
         this.path = path;
@@ -30,9 +31,32 @@ final class CommandConfiguration {
         var binding = new Binding(name);
         var node = EnchantCommand.register(dispatcher, context, name,
                 source -> reload(source, dispatcher, context, binding));
-        if (node != null) binding.original = OwnedTree.capture(node);
+        if (node != null) {
+            binding.original = OwnedTree.capture(node);
+            registration = new Registration(dispatcher, context, binding);
+        }
         return node;
     }
+
+    void prepareNextServer(String name) {
+        activeName = name;
+    }
+
+    int reloadFromMenu(net.minecraft.server.MinecraftServer server, net.minecraft.commands.CommandSource output) {
+        var current = registration;
+        if (current == null || current.dispatcher != server.getCommands().getDispatcher()) {
+            output.sendSystemMessage(Component.literal("[Enchanting Commands] Config saved. Restart the world to apply the command name."));
+            return 0;
+        }
+        return reload(server.createCommandSourceStack().withSource(output), current.dispatcher, current.context, current.binding);
+    }
+
+    void releaseServer(net.minecraft.server.MinecraftServer server) {
+        if (registration != null && registration.dispatcher == server.getCommands().getDispatcher()) registration = null;
+    }
+
+    private record Registration(CommandDispatcher<CommandSourceStack> dispatcher,
+            CommandBuildContext context, Binding binding) {}
 
     private int reload(CommandSourceStack source, CommandDispatcher<CommandSourceStack> dispatcher,
             CommandBuildContext context, Binding binding) {

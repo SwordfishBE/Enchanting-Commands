@@ -14,7 +14,11 @@
   "icon": "assets/enchanting_commands/icon.png",
   "environment": "*",
   "mixins": ["enchanting_commands.mixins.json"],
-  "entrypoints": { "main": ["net.enchanting_commands.EnchantingCommands"] },
+  "entrypoints": {
+    "main": ["net.enchanting_commands.EnchantingCommands"],
+    "modmenu": ["net.enchanting_commands.EnchantingCommandsModMenu"]
+  },
+  "suggests": { "modmenu": "*", "cloth-config": "*" },
   "depends": {
     "fabricloader": ">=0.20.1",
     "minecraft": ">=26.4-alpha.6 <=26.4",
